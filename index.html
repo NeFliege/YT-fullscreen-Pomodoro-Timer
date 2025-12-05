@@ -117,7 +117,7 @@
 
     <div class="input-bar">
       <input id="urlInput" placeholder="Paste YouTube link or ID" />
-      <button onclick="loadVideo()">Load</button>
+      <button id="loadBtn">Load</button>
       <button onclick="clearVideo()">Clear</button>
     </div>
 
@@ -198,11 +198,28 @@ let sessionStart = null;
 
   function loadVideo() {
   const id = extractYouTubeId(urlInput.value.trim());
-  if (!id) return alert('Invalid YouTube link');
+  if (!id) {
+    alert('Invalid YouTube link');
+    return;
+  }
   videoId = id;
 
   const iframe = document.createElement('iframe');
   iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&controls=1&rel=0&modestbranding=1`;
+  iframe.allow = 'autoplay; fullscreen; encrypted-media';
+  iframe.allowFullscreen = true;
+  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+
+  const area = document.getElementById('videoArea');
+  area.innerHTML = '';
+  area.appendChild(iframe);
+
+  localStorage.setItem('yt_url', urlInput.value);
+}
+
+if (document.getElementById('loadBtn')) {
+  document.getElementById('loadBtn').addEventListener('click', loadVideo);
+}?autoplay=0&controls=1&rel=0&modestbranding=1`;
   iframe.allow = 'autoplay; fullscreen; encrypted-media';
   iframe.allowFullscreen = true;
   iframe.referrerPolicy = 'strict-origin-when-cross-origin';
