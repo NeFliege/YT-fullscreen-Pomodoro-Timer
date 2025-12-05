@@ -1,453 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YouTube Fullscreen + Pomodoro</title>
-  <style>
-    * { box-sizing: border-box; font-family: Inter, system-ui, -apple-system, sans-serif; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: radial-gradient(1200px 600px at 20% 10%, #2a2f3a, #0f1115);
-      color: white;
-      display: flex;
-      justify-content: center;
-      padding: 24px;
-    }
-    .app { width: 100%; max-width: 1100px; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    h1 { font-size: 22px; font-weight: 600; margin: 0; }
+<meta charset="UTF-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Focus Player</title>
 
-    .stat-card {
-      background: rgba(255,255,255,.06);
-      border-radius: 14px;
-      padding: 12px 14px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 30px rgba(0,0,0,.3);
-    }
+<style>
+* { box-sizing: border-box; font-family: system-ui, sans-serif; }
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 20% 10%, #2a2f3a, #0f1115);
+  color: white;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+.app { width: 100%; max-width: 1100px; }
 
-    .stat-label { font-size: 12px; opacity: .7; }
-    .stat-value { font-size: 18px; font-weight: 600; margin-top: 4px; }
+.input-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  background: rgba(255,255,255,.08);
+  padding: 12px;
+  border-radius: 14px;
+}
+.input-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 14px;
+}
+.input-bar button {
+  background: rgba(255,255,255,.18);
+  border: none;
+  color: white;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
 
-    .input-bar {
-      background: rgba(255,255,255,.06);
-      border-radius: 16px;
-      padding: 12px;
-      display: flex;
-      gap: 8px;
-      margin-bottom: 20px;
-      backdrop-filter: blur(10px);
-    }
-    .input-bar input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: white;
-      font-size: 14px;
-    }
-    .input-bar button {
-      background: rgba(255,255,255,.14);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 8px 14px;
-      cursor: pointer;
-    }
+.player-container {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: black;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 80px rgba(0,0,0,.6);
+}
 
-    .player-container {
-      position: relative;
-      background: black;
-      border-radius: 20px;
-      overflow: hidden;
-      aspect-ratio: 16 / 9;
-      box-shadow: 0 25px 80px rgba(0,0,0,.6);
-    }
+iframe { width: 100%; height: 100%; border: none; }
 
-    iframe { width: 100%; height: 100%; border: none; }
+.overlay {
+  position: absolute;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  background: rgba(255,255,255,.14);
+  padding: 10px;
+  border-radius: 12px;
+}
 
-    .overlay {
-      position: absolute;
-      z-index: 10;
-      backdrop-filter: blur(12px);
-      background: rgba(255,255,255,.08);
-      border-radius: 14px;
-      padding: 10px;
-      mix-blend-mode: difference;
-      color: white;
-    }
+.timer-box { top: 16px; left: 16px; width: 160px; }
+.controls-box { top: 16px; right: 16px; }
 
-    .timer-box { left: 16px; top: 16px; width: 150px; }
-    .controls-box { right: 16px; top: 16px; display: flex; gap: 8px; }
+footer {
+  margin-top: 14px;
+  background: rgba(255,255,255,.06);
+  padding: 12px;
+  border-radius: 14px;
+}
 
-    .overlay button, select, input[type="number"] {
-      background: rgba(255,255,255,.14);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 12px;
-    }
-
-    .timer-time { font-size: 16px; font-weight: 600; }
-
-    footer {
-      margin-top: 20px;
-      background: rgba(255,255,255,.05);
-      border-radius: 16px;
-      padding: 16px;
-      font-size: 13px;
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-      flex-wrap: wrap;
-    }
-
-    .hint { opacity: .7; }
-  </style>
+.stat-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+}
+.stat {
+  background: rgba(255,255,255,.08);
+  padding: 10px;
+  border-radius: 12px;
+}
+</style>
 </head>
+
 <body>
-  <div class="app">
-    <header>
-      <h1>YouTube Fullscreen Player — Pomodoro</h1>
-      <div class="hint">Sleek • Minimal • Focused</div>
-    </header>
+<div class="app">
 
-    <div class="input-bar">
-      <input id="urlInput" placeholder="Paste YouTube link or ID" />
-      <button id="loadBtn">Load</button>
-      <button onclick="clearVideo()">Clear</button>
-    </div>
+<div class="input-bar">
+  <input id="urlInput" placeholder="Paste YouTube link">
+  <button id="loadBtn">Load</button>
+</div>
 
-    <div class="player-container" id="playerContainer">
-      <div class="overlay timer-box auto-contrast">
-        <div style="display:flex; justify-content:space-between; font-size:12px; opacity:.9">
-          <div id="timerLabel">Focus</div>
-          <div class="timer-time" id="timerDisplay">25:00</div>
-        </div>
-        <div style="margin-top:8px; display:flex; gap:6px">
-          <button onclick="toggleTimer()" id="timerBtn">Start</button>
-          <button onclick="resetTimer()">Reset</button>
-        </div>
-        <div style="margin-top:8px; display:flex; gap:6px">
-          <select id="modeSelect" onchange="changeMode()">
-            <option value="pomodoro">Pomodoro</option>
-            <option value="countdown">Countdown</option>
-            <option value="countup">Count Up</option>
-          </select>
-        </div>
-      </div>
+<div class="player-container">
+  <div class="overlay timer-box">
+    <div id="timerLabel">Focus</div>
+    <div id="timerDisplay">25:00</div>
+    <button onclick="toggleTimer()" id="timerBtn">Start</button>
+    <button onclick="resetTimer()">Reset</button>
+    <select id="modeSelect" onchange="changeMode()">
+      <option value="pomodoro">Pomodoro</option>
+      <option value="countdown">Countdown</option>
+      <option value="countup">Count Up</option>
+    </select>
+  </div>
 
-      <div class="overlay controls-box auto-contrast">
-        <button onclick="enterFullscreen()">Fullscreen</button>
-      </div>
+  <div class="overlay controls-box">
+    <button onclick="enterFullscreen()">Fullscreen</button>
+  </div>
 
-      <div id="videoArea" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">
-        Paste a YouTube link and click Load
-      </div>
-    </div>
+  <div id="videoArea" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#888;">
+    Paste link and press Load
+  </div>
+</div>
 
-    <footer>
+<footer>
   <div id="settingsPanel"></div>
-  <div class="hint">Sessions are stored automatically in your browser</div>
+
+  <div class="stat-grid">
+    <div class="stat">Today: <span id="todayStat">0:00</span></div>
+    <div class="stat">Week: <span id="weekStat">0:00</span></div>
+    <div class="stat">Streak: <span id="streakStat">0 days</span></div>
+  </div>
 </footer>
 
-<section id="historySection" style="margin-top:20px;">
-  <h3 style="font-size:16px; opacity:.85; margin-bottom:8px;">Session History</h3>
+<div id="historyList" style="margin-top:12px;"></div>
 
-  <div id="analytics" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-bottom:12px;">
-    <div class="stat-card"><div class="stat-label">Today's Focus</div><div id="todayStat" class="stat-value">0:00</div></div>
-    <div class="stat-card"><div class="stat-label">This Week</div><div id="weekStat" class="stat-value">0:00</div></div>
-    <div class="stat-card"><div class="stat-label">Current Streak</div><div id="streakStat" class="stat-value">0 days</div></div>
-  </div>
-
-  <div id="historyList" style="display:flex; flex-direction:column; gap:8px;"></div>
-  <button onclick="clearHistory()" style="margin-top:10px; background:rgba(255,255,255,.12); border:none; border-radius:10px; padding:8px 12px; color:white; font-size:12px;">Clear History</button>
-</section>
-  </div>
+</div>
 
 <script>
-  let videoId = "";
-  let mode = localStorage.getItem('timer_mode') || 'pomodoro';
-  let pomodoro = JSON.parse(localStorage.getItem('pomodoro_state')) || { focus: 1500, break: 300 };
-  let running = false;
+let mode = localStorage.getItem('mode') || 'pomodoro';
+let pomodoro = JSON.parse(localStorage.getItem('pomodoro') || '{"focus":1500,"break":300}');
+let running = false;
+let secondsLeft = pomodoro.focus;
+let countUpSeconds = 0;
+let isBreak = false;
 let sessionStart = null;
-  let isBreak = false;
-  let secondsLeft = pomodoro.focus;
-  let countUpSeconds = 0;
-  const urlInput = document.getElementById('urlInput');
 
-  const chime = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQQAAAAA//8AAP//AAD//wAA//8AAP//AAD//wAA');
+const chime = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQQAAAAA');
 
-  document.getElementById('modeSelect').value = mode;
-  document.getElementById('focusInput').value = pomodoro.focus / 60;
-  document.getElementById('breakInput').value = pomodoro.break / 60;
+document.getElementById('modeSelect').value = mode;
 
-  syncSettingsVisibility();
-  updateTimerUI();
+function extractId(url) {
+  const m = url.match(/([\w-]{11})/);
+  return m ? m[1] : null;
+}
 
-  function extractYouTubeId(text) {
-    const reg = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/;
-    const m = text.match(reg);
-    if (m) return m[1];
-    if (/^[\w-]{11}$/.test(text)) return text;
-    return "";
-  }
-
-  function loadVideo() {
-  const id = extractYouTubeId(urlInput.value.trim());
-  if (!id) {
-    alert('Invalid YouTube link');
-    return;
-  }
-  videoId = id;
+document.getElementById('loadBtn').onclick = function() {
+  const id = extractId(document.getElementById('urlInput').value);
+  if (!id) return alert("Invalid link");
 
   const iframe = document.createElement('iframe');
-  iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&controls=1&rel=0&modestbranding=1`;
-  iframe.allow = 'autoplay; fullscreen; encrypted-media';
-  iframe.allowFullscreen = true;
-  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+  iframe.src = "https://www.youtube-nocookie.com/embed/" + id;
+  iframe.allow = "autoplay; fullscreen";
+  iframe.referrerPolicy = "strict-origin-when-cross-origin";
 
   const area = document.getElementById('videoArea');
-  area.innerHTML = '';
+  area.innerHTML = "";
   area.appendChild(iframe);
+};
 
-  localStorage.setItem('yt_url', urlInput.value);
+function enterFullscreen() {
+  document.querySelector('.player-container').requestFullscreen();
 }
 
-if (document.getElementById('loadBtn')) {
-  document.getElementById('loadBtn').addEventListener('click', loadVideo);
-}?autoplay=0&controls=1&rel=0&modestbranding=1`;
-  iframe.allow = 'autoplay; fullscreen; encrypted-media';
-  iframe.allowFullscreen = true;
-  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-
-  const area = document.getElementById('videoArea');
-  area.innerHTML = '';
-  area.appendChild(iframe);
-
-  localStorage.setItem('yt_url', urlInput.value);
-}?autoplay=0&controls=1&rel=0&modestbranding=1"
-        allow="autoplay; fullscreen; encrypted-media"
-        allowfullscreen
-        referrerpolicy="strict-origin-when-cross-origin">
-      </iframe>`;
-
-    localStorage.setItem('yt_url', urlInput.value);
-  }
-
-  function clearVideo() {
-    videoId = "";
-    document.getElementById('videoArea').innerHTML = "Paste a YouTube link and click Load";
-    localStorage.removeItem('yt_url');
-  }
-
-  function enterFullscreen() {
-    const el = document.getElementById('playerContainer');
-    if (el.requestFullscreen) el.requestFullscreen();
-  }
-
-  function toggleTimer() {
+function toggleTimer() {
   running = !running;
-  document.getElementById('timerBtn').innerText = running ? 'Pause' : 'Start';
-
-  if (running && !sessionStart) {
-    sessionStart = Date.now();
-  }
-
-  if (!running && sessionStart) {
-    saveSession();
-  }
+  document.getElementById('timerBtn').innerText = running ? "Pause" : "Start";
+  if (running && !sessionStart) sessionStart = Date.now();
+  if (!running && sessionStart) saveSession();
 }
 
-  function resetTimer() {
-  if (sessionStart) saveSession();
+function resetTimer() {
   running = false;
-  isBreak = false;
   sessionStart = null;
-  secondsLeft = mode === 'pomodoro' ? pomodoro.focus : Number(document.getElementById('countdownInput').value) * 60;
-  updateTimerUI();
-  document.getElementById('timerBtn').innerText = 'Start';
-} else if (mode === 'countdown') {
-      secondsLeft = Number(document.getElementById('countdownInput').value) * 60;
-    }
+  secondsLeft = pomodoro.focus;
+  countUpSeconds = 0;
+}
 
-    updateTimerUI();
-    document.getElementById('timerBtn').innerText = 'Start';
-  }
-
-  function changeMode() {
-  if (sessionStart) saveSession();
+function changeMode() {
   mode = document.getElementById('modeSelect').value;
-  localStorage.setItem('timer_mode', mode);
-  sessionStart = null;
+  localStorage.setItem('mode', mode);
   resetTimer();
-  renderSettingsPanel();
+  renderSettings();
 }
 
-  function syncSettingsVisibility() {
-    document.getElementById('pomodoroSettings').classList.toggle('hidden', mode !== 'pomodoro');
-    document.getElementById('countdownSettings').classList.toggle('hidden', mode !== 'countdown');
-  }
+function format(s) {
+  const m = String(Math.floor(s/60)).padStart(2,'0');
+  const sec = String(s%60).padStart(2,'0');
+  return m+":"+sec;
+}
 
-  function updatePomodoro() {
-    pomodoro.focus = Number(document.getElementById('focusInput').value) * 60;
-    pomodoro.break = Number(document.getElementById('breakInput').value) * 60;
-    localStorage.setItem('pomodoro_state', JSON.stringify(pomodoro));
-    resetTimer();
-  }
+setInterval(function() {
+  if (!running) return;
 
-  function formatTime(s) {
-    const m = String(Math.floor(s / 60)).padStart(2,'0');
-    const sec = String(Math.floor(s % 60)).padStart(2,'0');
-    return m + ':' + sec;
-  }
-
-  function updateTimerUI() {
-    if (mode === 'countup') {
-      document.getElementById('timerDisplay').innerText = formatTime(countUpSeconds);
-      document.getElementById('timerLabel').innerText = 'Elapsed';
-    } else {
-      document.getElementById('timerDisplay').innerText = formatTime(secondsLeft);
-      document.getElementById('timerLabel').innerText = mode === 'pomodoro' ? (isBreak ? 'Break' : 'Focus') : 'Timer';
+  if (mode === 'countup') {
+    countUpSeconds++;
+  } else {
+    secondsLeft--;
+    if (secondsLeft <= 0) {
+      running = false;
+      chime.play();
     }
   }
 
-  function saveSession() {
+  document.getElementById('timerDisplay').innerText =
+    mode === 'countup' ? format(countUpSeconds) : format(secondsLeft);
+
+},1000);
+
+function saveSession() {
   const end = Date.now();
-  const duration = Math.floor((end - sessionStart) / 1000);
-  if (duration < 5) return;
-  const history = JSON.parse(localStorage.getItem('session_history') || '[]');
-  history.unshift({
-    mode,
-    duration,
-    date: new Date().toLocaleString()
-  });
-  localStorage.setItem('session_history', JSON.stringify(history.slice(0, 50)));
-  sessionStart = null;
-  renderHistory();
+  const dur = Math.floor((end - sessionStart)/1000);
+  if (dur < 5) return;
+
+  const history = JSON.parse(localStorage.getItem('history') || '[]');
+  history.unshift({ dur, date: new Date().toLocaleString() });
+  localStorage.setItem('history', JSON.stringify(history.slice(0,50)));
 }
 
-function renderHistory() {
-  const history = JSON.parse(localStorage.getItem('session_history') || '[]');
-  const list = document.getElementById('historyList');
-  list.innerHTML = history.map(h => `
-    <div style="background:rgba(255,255,255,.06); padding:10px 12px; border-radius:12px; display:flex; justify-content:space-between; font-size:12px;">
-      <div>${h.mode.toUpperCase()}</div>
-      <div>${formatTime(h.duration)}</div>
-      <div style="opacity:.6">${h.date}</div>
-    </div>
-  `).join('');
-
-  renderAnalytics(history);
-}</div>
-      <div>${formatTime(h.duration)}</div>
-      <div style="opacity:.6">${h.date}</div>
-    </div>
-  `).join('');
-}
-
-function clearHistory() {
-  localStorage.removeItem('session_history');
-  renderHistory();
-}
-
-function renderAnalytics(history) {
-  const now = new Date();
-  const todayKey = now.toDateString();
-
-  let todaySeconds = 0;
-  let weekSeconds = 0;
-
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay());
-  startOfWeek.setHours(0,0,0,0);
-
-  history.forEach(h => {
-    const d = new Date(h.date);
-
-    if (d.toDateString() === todayKey && h.mode !== 'countup') {
-      todaySeconds += h.duration;
-    }
-
-    if (d >= startOfWeek && h.mode !== 'countup') {
-      weekSeconds += h.duration;
-    }
-  });
-
-  document.getElementById('todayStat').innerText = formatTime(todaySeconds);
-  document.getElementById('weekStat').innerText = formatTime(weekSeconds);
-
-  // Streak calculation
-  const days = new Set();
-  history.forEach(h => {
-    const d = new Date(h.date);
-    days.add(d.toDateString());
-  });
-
-  let streak = 0;
-  const temp = new Date();
-  while (days.has(temp.toDateString())) {
-    streak++;
-    temp.setDate(temp.getDate() - 1);
-  }
-
-  document.getElementById('streakStat').innerText = `${streak} day${streak === 1 ? '' : 's'}`;
-}
-
-function renderSettingsPanel() {
+function renderSettings() {
   const panel = document.getElementById('settingsPanel');
   if (mode === 'pomodoro') {
-    panel.innerHTML = `
-      Pomodoro (minutes):
-      Focus <input type="number" id="focusInput" value="${pomodoro.focus / 60}" min="1" style="width:60px" />
-      Break <input type="number" id="breakInput" value="${pomodoro.break / 60}" min="1" style="width:60px" />
-      <button onclick="updatePomodoro()">Save</button>
-    `;
+    panel.innerHTML = 'Focus <input id="f" type="number" value="'+pomodoro.focus/60+'"> Break <input id="b" type="number" value="'+pomodoro.break/60+'"> <button onclick="savePomo()">Save</button>';
   } else if (mode === 'countdown') {
-    panel.innerHTML = `
-      Countdown (minutes):
-      <input type="number" id="countdownInput" value="25" min="1" style="width:60px" />
-      <button onclick="resetTimer()">Apply</button>
-    `;
+    panel.innerHTML = 'Minutes <input id="c" type="number" value="25"> <button onclick="applyCountdown()">Apply</button>';
   } else {
-    panel.innerHTML = `<span class="hint">Count-up timer has no settings</span>`;
+    panel.innerHTML = 'Count-up has no settings';
   }
 }
 
-renderHistory();
-renderSettingsPanel();
+function savePomo() {
+  pomodoro.focus = Number(document.getElementById('f').value)*60;
+  pomodoro.break = Number(document.getElementById('b').value)*60;
+  localStorage.setItem('pomodoro', JSON.stringify(pomodoro));
+  resetTimer();
+}
 
-setInterval(() => {
-    if (!running) return;
+function applyCountdown() {
+  secondsLeft = Number(document.getElementById('c').value)*60;
+}
 
-    if (mode === 'countup') {
-      countUpSeconds++;
-    } else {
-      secondsLeft--;
-
-      if (secondsLeft <= 0) {
-        if (mode === 'pomodoro') {
-          isBreak = !isBreak;
-          secondsLeft = isBreak ? pomodoro.break : pomodoro.focus;
-        } else if (mode === 'countdown') {
-          running = false;
-          chime.play();
-        }
-      }
-    }
-
-    updateTimerUI();
-  }, 1000);
-
-  // restore previous video
-  const savedUrl = localStorage.getItem('yt_url');
-  if (savedUrl) {
-    urlInput.value = savedUrl;
-    loadVideo();
-  }
+renderSettings();
 </script>
+
 </body>
 </html>
