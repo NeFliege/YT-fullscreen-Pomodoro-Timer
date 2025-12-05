@@ -197,14 +197,22 @@ let sessionStart = null;
   }
 
   function loadVideo() {
-    const id = extractYouTubeId(urlInput.value.trim());
-    if (!id) return alert('Invalid YouTube link');
-    videoId = id;
+  const id = extractYouTubeId(urlInput.value.trim());
+  if (!id) return alert('Invalid YouTube link');
+  videoId = id;
 
-    document.getElementById('videoArea').innerHTML = `
-      <iframe
-        id="ytFrame"
-        src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&controls=1&rel=0&modestbranding=1"
+  const iframe = document.createElement('iframe');
+  iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&controls=1&rel=0&modestbranding=1`;
+  iframe.allow = 'autoplay; fullscreen; encrypted-media';
+  iframe.allowFullscreen = true;
+  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+
+  const area = document.getElementById('videoArea');
+  area.innerHTML = '';
+  area.appendChild(iframe);
+
+  localStorage.setItem('yt_url', urlInput.value);
+}?autoplay=0&controls=1&rel=0&modestbranding=1"
         allow="autoplay; fullscreen; encrypted-media"
         allowfullscreen
         referrerpolicy="strict-origin-when-cross-origin">
