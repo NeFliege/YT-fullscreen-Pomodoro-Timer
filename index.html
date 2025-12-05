@@ -20,6 +20,17 @@
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     h1 { font-size: 22px; font-weight: 600; margin: 0; }
 
+    .stat-card {
+      background: rgba(255,255,255,.06);
+      border-radius: 14px;
+      padding: 12px 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 30px rgba(0,0,0,.3);
+    }
+
+    .stat-label { font-size: 12px; opacity: .7; }
+    .stat-value { font-size: 18px; font-weight: 600; margin-top: 4px; }
+
     .input-bar {
       background: rgba(255,255,255,.06);
       border-radius: 16px;
@@ -64,6 +75,8 @@
       background: rgba(255,255,255,.08);
       border-radius: 14px;
       padding: 10px;
+      mix-blend-mode: difference;
+      color: white;
     }
 
     .timer-box { left: 16px; top: 16px; width: 150px; }
@@ -109,8 +122,8 @@
     </div>
 
     <div class="player-container" id="playerContainer">
-      <div class="overlay timer-box">
-        <div style="display:flex; justify-content:space-between; font-size:12px; opacity:.8">
+      <div class="overlay timer-box auto-contrast">
+        <div style="display:flex; justify-content:space-between; font-size:12px; opacity:.9">
           <div id="timerLabel">Focus</div>
           <div class="timer-time" id="timerDisplay">25:00</div>
         </div>
@@ -122,14 +135,13 @@
           <select id="modeSelect" onchange="changeMode()">
             <option value="pomodoro">Pomodoro</option>
             <option value="countdown">Countdown</option>
+            <option value="countup">Count Up</option>
           </select>
-          <input type="number" id="countdownInput" value="25" min="1" style="width:60px" />
         </div>
       </div>
 
-      <div class="overlay controls-box">
+      <div class="overlay controls-box auto-contrast">
         <button onclick="enterFullscreen()">Fullscreen</button>
-        <button onclick="togglePlay()" id="playBtn">Play</button>
       </div>
 
       <div id="videoArea" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">
@@ -138,29 +150,42 @@
     </div>
 
     <footer>
-      <div>
-        Pomodoro (minutes):
-        Focus <input type="number" id="focusInput" value="25" min="1" style="width:60px" />
-        Break <input type="number" id="breakInput" value="5" min="1" style="width:60px" />
-        <button onclick="updatePomodoro()">Save</button>
-      </div>
-      <div class="hint">Settings are stored in your browser</div>
-    </footer>
+  <div id="settingsPanel"></div>
+  <div class="hint">Sessions are stored automatically in your browser</div>
+</footer>
+
+<section id="historySection" style="margin-top:20px;">
+  <h3 style="font-size:16px; opacity:.85; margin-bottom:8px;">Session History</h3>
+
+  <div id="analytics" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-bottom:12px;">
+    <div class="stat-card"><div class="stat-label">Today's Focus</div><div id="todayStat" class="stat-value">0:00</div></div>
+    <div class="stat-card"><div class="stat-label">This Week</div><div id="weekStat" class="stat-value">0:00</div></div>
+    <div class="stat-card"><div class="stat-label">Current Streak</div><div id="streakStat" class="stat-value">0 days</div></div>
+  </div>
+
+  <div id="historyList" style="display:flex; flex-direction:column; gap:8px;"></div>
+  <button onclick="clearHistory()" style="margin-top:10px; background:rgba(255,255,255,.12); border:none; border-radius:10px; padding:8px 12px; color:white; font-size:12px;">Clear History</button>
+</section>
   </div>
 
 <script>
   let videoId = "";
-  let isPlaying = false;
   let mode = localStorage.getItem('timer_mode') || 'pomodoro';
   let pomodoro = JSON.parse(localStorage.getItem('pomodoro_state')) || { focus: 1500, break: 300 };
   let running = false;
+let sessionStart = null;
   let isBreak = false;
   let secondsLeft = pomodoro.focus;
+  let countUpSeconds = 0;
   const urlInput = document.getElementById('urlInput');
+
+  const chime = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQQAAAAA//8AAP//AAD//wAA//8AAP//AAD//wAA');
 
   document.getElementById('modeSelect').value = mode;
   document.getElementById('focusInput').value = pomodoro.focus / 60;
   document.getElementById('breakInput').value = pomodoro.break / 60;
+
+  syncSettingsVisibility();
   updateTimerUI();
 
   function extractYouTubeId(text) {
@@ -176,8 +201,6 @@
     if (!id) return alert('Invalid YouTube link');
     videoId = id;
 
-    const origin = encodeURIComponent(window.location.origin || 'https://localhost');
-
     document.getElementById('videoArea').innerHTML = `
       <iframe
         id="ytFrame"
@@ -187,8 +210,6 @@
         referrerpolicy="strict-origin-when-cross-origin">
       </iframe>`;
 
-    isPlaying = false;
-    document.getElementById('playBtn').innerText = 'Play';
     localStorage.setItem('yt_url', urlInput.value);
   }
 
@@ -198,40 +219,52 @@
     localStorage.removeItem('yt_url');
   }
 
-  function togglePlay() {
-    if (!videoId) return;
-    const iframe = document.getElementById('ytFrame');
-    if (!iframe) return;
-
-    isPlaying = !isPlaying;
-    const origin = encodeURIComponent(window.location.origin || 'https://localhost');
-    iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${isPlaying ? 1 : 0}&controls=1&rel=0&modestbranding=1&origin=${origin}`;
-
-    document.getElementById('playBtn').innerText = isPlaying ? 'Pause' : 'Play';
-  }
-
   function enterFullscreen() {
     const el = document.getElementById('playerContainer');
     if (el.requestFullscreen) el.requestFullscreen();
   }
 
   function toggleTimer() {
-    running = !running;
-    document.getElementById('timerBtn').innerText = running ? 'Pause' : 'Start';
+  running = !running;
+  document.getElementById('timerBtn').innerText = running ? 'Pause' : 'Start';
+
+  if (running && !sessionStart) {
+    sessionStart = Date.now();
   }
 
+  if (!running && sessionStart) {
+    saveSession();
+  }
+}
+
   function resetTimer() {
-    running = false;
-    isBreak = false;
-    secondsLeft = mode === 'pomodoro' ? pomodoro.focus : Number(document.getElementById('countdownInput').value) * 60;
+  if (sessionStart) saveSession();
+  running = false;
+  isBreak = false;
+  sessionStart = null;
+  secondsLeft = mode === 'pomodoro' ? pomodoro.focus : Number(document.getElementById('countdownInput').value) * 60;
+  updateTimerUI();
+  document.getElementById('timerBtn').innerText = 'Start';
+} else if (mode === 'countdown') {
+      secondsLeft = Number(document.getElementById('countdownInput').value) * 60;
+    }
+
     updateTimerUI();
     document.getElementById('timerBtn').innerText = 'Start';
   }
 
   function changeMode() {
-    mode = document.getElementById('modeSelect').value;
-    localStorage.setItem('timer_mode', mode);
-    resetTimer();
+  if (sessionStart) saveSession();
+  mode = document.getElementById('modeSelect').value;
+  localStorage.setItem('timer_mode', mode);
+  sessionStart = null;
+  resetTimer();
+  renderSettingsPanel();
+}
+
+  function syncSettingsVisibility() {
+    document.getElementById('pomodoroSettings').classList.toggle('hidden', mode !== 'pomodoro');
+    document.getElementById('countdownSettings').classList.toggle('hidden', mode !== 'countdown');
   }
 
   function updatePomodoro() {
@@ -243,26 +276,144 @@
 
   function formatTime(s) {
     const m = String(Math.floor(s / 60)).padStart(2,'0');
-    const sec = String(s % 60).padStart(2,'0');
+    const sec = String(Math.floor(s % 60)).padStart(2,'0');
     return m + ':' + sec;
   }
 
   function updateTimerUI() {
-    document.getElementById('timerDisplay').innerText = formatTime(secondsLeft);
-    document.getElementById('timerLabel').innerText = mode === 'pomodoro' ? (isBreak ? 'Break' : 'Focus') : 'Timer';
+    if (mode === 'countup') {
+      document.getElementById('timerDisplay').innerText = formatTime(countUpSeconds);
+      document.getElementById('timerLabel').innerText = 'Elapsed';
+    } else {
+      document.getElementById('timerDisplay').innerText = formatTime(secondsLeft);
+      document.getElementById('timerLabel').innerText = mode === 'pomodoro' ? (isBreak ? 'Break' : 'Focus') : 'Timer';
+    }
   }
 
-  setInterval(() => {
+  function saveSession() {
+  const end = Date.now();
+  const duration = Math.floor((end - sessionStart) / 1000);
+  if (duration < 5) return;
+  const history = JSON.parse(localStorage.getItem('session_history') || '[]');
+  history.unshift({
+    mode,
+    duration,
+    date: new Date().toLocaleString()
+  });
+  localStorage.setItem('session_history', JSON.stringify(history.slice(0, 50)));
+  sessionStart = null;
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = JSON.parse(localStorage.getItem('session_history') || '[]');
+  const list = document.getElementById('historyList');
+  list.innerHTML = history.map(h => `
+    <div style="background:rgba(255,255,255,.06); padding:10px 12px; border-radius:12px; display:flex; justify-content:space-between; font-size:12px;">
+      <div>${h.mode.toUpperCase()}</div>
+      <div>${formatTime(h.duration)}</div>
+      <div style="opacity:.6">${h.date}</div>
+    </div>
+  `).join('');
+
+  renderAnalytics(history);
+}</div>
+      <div>${formatTime(h.duration)}</div>
+      <div style="opacity:.6">${h.date}</div>
+    </div>
+  `).join('');
+}
+
+function clearHistory() {
+  localStorage.removeItem('session_history');
+  renderHistory();
+}
+
+function renderAnalytics(history) {
+  const now = new Date();
+  const todayKey = now.toDateString();
+
+  let todaySeconds = 0;
+  let weekSeconds = 0;
+
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0,0,0,0);
+
+  history.forEach(h => {
+    const d = new Date(h.date);
+
+    if (d.toDateString() === todayKey && h.mode !== 'countup') {
+      todaySeconds += h.duration;
+    }
+
+    if (d >= startOfWeek && h.mode !== 'countup') {
+      weekSeconds += h.duration;
+    }
+  });
+
+  document.getElementById('todayStat').innerText = formatTime(todaySeconds);
+  document.getElementById('weekStat').innerText = formatTime(weekSeconds);
+
+  // Streak calculation
+  const days = new Set();
+  history.forEach(h => {
+    const d = new Date(h.date);
+    days.add(d.toDateString());
+  });
+
+  let streak = 0;
+  const temp = new Date();
+  while (days.has(temp.toDateString())) {
+    streak++;
+    temp.setDate(temp.getDate() - 1);
+  }
+
+  document.getElementById('streakStat').innerText = `${streak} day${streak === 1 ? '' : 's'}`;
+}
+
+function renderSettingsPanel() {
+  const panel = document.getElementById('settingsPanel');
+  if (mode === 'pomodoro') {
+    panel.innerHTML = `
+      Pomodoro (minutes):
+      Focus <input type="number" id="focusInput" value="${pomodoro.focus / 60}" min="1" style="width:60px" />
+      Break <input type="number" id="breakInput" value="${pomodoro.break / 60}" min="1" style="width:60px" />
+      <button onclick="updatePomodoro()">Save</button>
+    `;
+  } else if (mode === 'countdown') {
+    panel.innerHTML = `
+      Countdown (minutes):
+      <input type="number" id="countdownInput" value="25" min="1" style="width:60px" />
+      <button onclick="resetTimer()">Apply</button>
+    `;
+  } else {
+    panel.innerHTML = `<span class="hint">Count-up timer has no settings</span>`;
+  }
+}
+
+renderHistory();
+renderSettingsPanel();
+
+setInterval(() => {
     if (!running) return;
-    secondsLeft--;
-    if (secondsLeft <= 0) {
-      if (mode === 'pomodoro') {
-        isBreak = !isBreak;
-        secondsLeft = isBreak ? pomodoro.break : pomodoro.focus;
-      } else {
-        running = false;
+
+    if (mode === 'countup') {
+      countUpSeconds++;
+    } else {
+      secondsLeft--;
+
+      if (secondsLeft <= 0) {
+        if (mode === 'pomodoro') {
+          isBreak = !isBreak;
+          secondsLeft = isBreak ? pomodoro.break : pomodoro.focus;
+        } else if (mode === 'countdown') {
+          running = false;
+          chime.play();
+        }
       }
     }
+
     updateTimerUI();
   }, 1000);
 
