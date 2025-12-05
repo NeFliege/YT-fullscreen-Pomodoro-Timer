@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Fullscreen + Pomodoro</title>
+  <style>
+    * { box-sizing: border-box; font-family: Inter, system-ui, -apple-system, sans-serif; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 20% 10%, #2a2f3a, #0f1115);
+      color: white;
+      display: flex;
+      justify-content: center;
+      padding: 24px;
+    }
+    .app { width: 100%; max-width: 1100px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { font-size: 22px; font-weight: 600; margin: 0; }
+
+    .input-bar {
+      background: rgba(255,255,255,.06);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      backdrop-filter: blur(10px);
+    }
+    .input-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: white;
+      font-size: 14px;
+    }
+    .input-bar button {
+      background: rgba(255,255,255,.14);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    .player-container {
+      position: relative;
+      background: black;
+      border-radius: 20px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      box-shadow: 0 25px 80px rgba(0,0,0,.6);
+    }
+
+    iframe { width: 100%; height: 100%; border: none; }
+
+    .overlay {
+      position: absolute;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 10px;
+    }
+
+    .timer-box { left: 16px; top: 16px; width: 150px; }
+    .controls-box { right: 16px; top: 16px; display: flex; gap: 8px; }
+
+    .overlay button, select, input[type="number"] {
+      background: rgba(255,255,255,.14);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+
+    .timer-time { font-size: 16px; font-weight: 600; }
+
+    footer {
+      margin-top: 20px;
+      background: rgba(255,255,255,.05);
+      border-radius: 16px;
+      padding: 16px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .hint { opacity: .7; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>YouTube Fullscreen Player — Pomodoro</h1>
+      <div class="hint">Sleek • Minimal • Focused</div>
+    </header>
+
+    <div class="input-bar">
+      <input id="urlInput" placeholder="Paste YouTube link or ID" />
+      <button onclick="loadVideo()">Load</button>
+      <button onclick="clearVideo()">Clear</button>
+    </div>
+
+    <div class="player-container" id="playerContainer">
+      <div class="overlay timer-box">
+        <div style="display:flex; justify-content:space-between; font-size:12px; opacity:.8">
+          <div id="timerLabel">Focus</div>
+          <div class="timer-time" id="timerDisplay">25:00</div>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:6px">
+          <button onclick="toggleTimer()" id="timerBtn">Start</button>
+          <button onclick="resetTimer()">Reset</button>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:6px">
+          <select id="modeSelect" onchange="changeMode()">
+            <option value="pomodoro">Pomodoro</option>
+            <option value="countdown">Countdown</option>
+          </select>
+          <input type="number" id="countdownInput" value="25" min="1" style="width:60px" />
+        </div>
+      </div>
+
+      <div class="overlay controls-box">
+        <button onclick="enterFullscreen()">Fullscreen</button>
+        <button onclick="togglePlay()" id="playBtn">Play</button>
+      </div>
+
+      <div id="videoArea" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#aaa;">
+        Paste a YouTube link and click Load
+      </div>
+    </div>
+
+    <footer>
+      <div>
+        Pomodoro (minutes):
+        Focus <input type="number" id="focusInput" value="25" min="1" style="width:60px" />
+        Break <input type="number" id="breakInput" value="5" min="1" style="width:60px" />
+        <button onclick="updatePomodoro()">Save</button>
+      </div>
+      <div class="hint">Settings are stored in your browser</div>
+    </footer>
+  </div>
+
+<script>
+  let videoId = "";
+  let isPlaying = false;
+  let mode = localStorage.getItem('timer_mode') || 'pomodoro';
+  let pomodoro = JSON.parse(localStorage.getItem('pomodoro_state')) || { focus: 1500, break: 300 };
+  let running = false;
+  let isBreak = false;
+  let secondsLeft = pomodoro.focus;
+  const urlInput = document.getElementById('urlInput');
+
+  document.getElementById('modeSelect').value = mode;
+  document.getElementById('focusInput').value = pomodoro.focus / 60;
+  document.getElementById('breakInput').value = pomodoro.break / 60;
+  updateTimerUI();
+
+  function extractYouTubeId(text) {
+    const reg = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/;
+    const m = text.match(reg);
+    if (m) return m[1];
+    if (/^[\w-]{11}$/.test(text)) return text;
+    return "";
+  }
+
+  function loadVideo() {
+    const id = extractYouTubeId(urlInput.value.trim());
+    if (!id) return alert('Invalid YouTube link');
+    videoId = id;
+
+    const origin = encodeURIComponent(window.location.origin || 'https://localhost');
+
+    document.getElementById('videoArea').innerHTML = `
+      <iframe
+        id="ytFrame"
+        src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&controls=1&rel=0&modestbranding=1"
+        allow="autoplay; fullscreen; encrypted-media"
+        allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin">
+      </iframe>`;
+
+    isPlaying = false;
+    document.getElementById('playBtn').innerText = 'Play';
+    localStorage.setItem('yt_url', urlInput.value);
+  }
+
+  function clearVideo() {
+    videoId = "";
+    document.getElementById('videoArea').innerHTML = "Paste a YouTube link and click Load";
+    localStorage.removeItem('yt_url');
+  }
+
+  function togglePlay() {
+    if (!videoId) return;
+    const iframe = document.getElementById('ytFrame');
+    if (!iframe) return;
+
+    isPlaying = !isPlaying;
+    const origin = encodeURIComponent(window.location.origin || 'https://localhost');
+    iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${isPlaying ? 1 : 0}&controls=1&rel=0&modestbranding=1&origin=${origin}`;
+
+    document.getElementById('playBtn').innerText = isPlaying ? 'Pause' : 'Play';
+  }
+
+  function enterFullscreen() {
+    const el = document.getElementById('playerContainer');
+    if (el.requestFullscreen) el.requestFullscreen();
+  }
+
+  function toggleTimer() {
+    running = !running;
+    document.getElementById('timerBtn').innerText = running ? 'Pause' : 'Start';
+  }
+
+  function resetTimer() {
+    running = false;
+    isBreak = false;
+    secondsLeft = mode === 'pomodoro' ? pomodoro.focus : Number(document.getElementById('countdownInput').value) * 60;
+    updateTimerUI();
+    document.getElementById('timerBtn').innerText = 'Start';
+  }
+
+  function changeMode() {
+    mode = document.getElementById('modeSelect').value;
+    localStorage.setItem('timer_mode', mode);
+    resetTimer();
+  }
+
+  function updatePomodoro() {
+    pomodoro.focus = Number(document.getElementById('focusInput').value) * 60;
+    pomodoro.break = Number(document.getElementById('breakInput').value) * 60;
+    localStorage.setItem('pomodoro_state', JSON.stringify(pomodoro));
+    resetTimer();
+  }
+
+  function formatTime(s) {
+    const m = String(Math.floor(s / 60)).padStart(2,'0');
+    const sec = String(s % 60).padStart(2,'0');
+    return m + ':' + sec;
+  }
+
+  function updateTimerUI() {
+    document.getElementById('timerDisplay').innerText = formatTime(secondsLeft);
+    document.getElementById('timerLabel').innerText = mode === 'pomodoro' ? (isBreak ? 'Break' : 'Focus') : 'Timer';
+  }
+
+  setInterval(() => {
+    if (!running) return;
+    secondsLeft--;
+    if (secondsLeft <= 0) {
+      if (mode === 'pomodoro') {
+        isBreak = !isBreak;
+        secondsLeft = isBreak ? pomodoro.break : pomodoro.focus;
+      } else {
+        running = false;
+      }
+    }
+    updateTimerUI();
+  }, 1000);
+
+  // restore previous video
+  const savedUrl = localStorage.getItem('yt_url');
+  if (savedUrl) {
+    urlInput.value = savedUrl;
+    loadVideo();
+  }
+</script>
+</body>
+</html>
